@@ -7,13 +7,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 from dev_misc import BT, FT, LT, add_argument, g, get_tensor, get_zeros
-from dev_misc.devlib import (BaseBatch, batch_class, get_array,
-                             get_length_mask, get_range)
-from dev_misc.devlib.named_tensor import (NameHelper, NoName, Rename,
-                                          drop_names, get_named_range)
+from dev_misc.devlib import BaseBatch, batch_class, get_array, get_length_mask, get_range
+from dev_misc.devlib.named_tensor import NameHelper, NoName, Rename, drop_names, get_named_range
 from dev_misc.utils import WithholdKeys, cached_property, global_property
-from xib.data_loader import (ContinuousIpaBatch, UnbrokenTextBatch,
-                             convert_to_dense)
+from xib.data_loader import ContinuousIpaBatch, UnbrokenTextBatch, convert_to_dense
 from xib.ipa import Category, Index, get_enum_by_cat, should_include
 from xib.ipa.process import Segment, Segmentation, SegmentWindow, Span
 from xib.model.modules import AdaptLayer, FeatEmbedding
@@ -88,7 +85,7 @@ class G2PLayer(nn.Module):
 
     def forward(self, ku_id_seqs: LT, lu_repr: FT) -> Tuple[FT, FT]:
         """Returns lu x ku representation and bs x l x ku representation."""
-        print(ku_id_seqs.size(), lu_repr.size())
+        # print(ku_id_seqs.size(), lu_repr.size())
         ku_char_weight = self.unit_aligner.weight
         ku_char_repr = ku_char_weight @ lu_repr
 
@@ -260,15 +257,15 @@ class ExtractModel(nn.Module):
                 word_repr.rename_("batch", "length", "char_emb")
         else:
             with Rename(self.unit_feat_matrix, unit="batch"):
-                print(batch.feat_matrix)
+                # print(batch.feat_matrix)
                 word_repr = self.embedding(batch.feat_matrix, batch.source_padding)
                 unit_repr = self.embedding(self.unit_feat_matrix)
-                print(word_repr.size(), unit_repr.size())
+                # print(word_repr.size(), unit_repr.size())
             unit_repr = unit_repr.squeeze("length")
             # this_unit_repr.rename_(batch="unit")
             char_log_probs = (word_repr @ unit_repr.rename(batch="unit").t()).log_softmax(dim=-1)
             alignment = char_log_probs.exp()
-            print(char_log_probs.reveal_names())
+            # print(char_log_probs.reveal_names())
         unit_repr.rename_(batch="unit")
 
         # Main body: extract one span.
@@ -351,7 +348,7 @@ class ExtractModel(nn.Module):
                 extracted_word_repr = word_repr[viable_bi, word_pos].rename("viable_X_len_w", "char_emb")
             extracted_unit_ids = None
         extracted_word_repr = nh.unflatten(extracted_word_repr, "viable_X_len_w", ["viable", "len_w"])
-        print("curr", extracted_word_repr.size())
+        # print("curr", extracted_word_repr.size())
 
         # Main body: Run DP to find the best matches.
         matches = self._get_matches(extracted_word_repr, unit_repr, viable_lens, extracted_unit_ids, char_log_probs)
@@ -383,12 +380,12 @@ class ExtractModel(nn.Module):
         mtl = self.vocab_feat_matrix.size("length")
 
         # Compute cosine distances all at once: for each viable span, compare it against all units.
-        print(extracted_word_repr.size(), unit_repr.size(), char_log_probs.size())
+        # print(extracted_word_repr.size(), unit_repr.size(), char_log_probs.size())
         ctx_logits = extracted_word_repr @ unit_repr.t()
         ctx_log_probs = ctx_logits.log_softmax(dim="unit").flatten(["viable", "len_w"], "viable_X_len_w")
-        print(ctx_log_probs.size(), char_log_probs.size(), extracted_unit_ids.size())
+        # print(ctx_log_probs.size(), char_log_probs.size(), extracted_unit_ids.size())
         with NoName(char_log_probs, extracted_unit_ids):
-            print(char_log_probs[extracted_unit_ids].size())
+            # print(char_log_probs[extracted_unit_ids].size())
             global_log_probs = char_log_probs[extracted_unit_ids].rename("viable_X_len_w", "unit")
         weighted_log_probs = g.context_weight * ctx_log_probs + (1.0 - g.context_weight) * global_log_probs
         costs = -weighted_log_probs
