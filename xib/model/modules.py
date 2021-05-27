@@ -4,14 +4,13 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn.modules import MultiheadAttention
-from torch.nn.modules.transformer import TransformerEncoderLayer
-
 from dev_misc import g
 from dev_misc.arglib import add_argument, not_supported_argument_value
 from dev_misc.devlib import get_range, get_tensor
 from dev_misc.devlib.named_tensor import NoName, adv_index, embed
 from dev_misc.utils import check_explicit_arg
+from torch.nn.modules import MultiheadAttention
+from torch.nn.modules.transformer import TransformerEncoderLayer
 from xib.ipa import (Category, Name, conditions, get_enum_by_cat,
                      get_needed_categories, get_new_style_enum, get_none_index,
                      no_none_predictions, should_include, should_predict_none)
@@ -22,7 +21,7 @@ from . import BT, FT, LT
 
 def get_effective_c_idx():
     if len(set(g.feat_groups)) != len(g.feat_groups):
-        raise ValueError(f'Duplicate values in feat_groups {g.feat_groups}.')
+        raise ValueError(f"Duplicate values in feat_groups {g.feat_groups}.")
     c_idx = list()
     feat_groups = set(g.feat_groups)
     for cat in Category:
@@ -32,7 +31,6 @@ def get_effective_c_idx():
 
 
 class FeatEmbedding(nn.Module):
-
     def __init__(self, feat_emb_name, group_name, char_emb_name, dim: int = 10):
         super().__init__()
         self.feat_emb_name = feat_emb_name
@@ -41,13 +39,13 @@ class FeatEmbedding(nn.Module):
         self.dim = dim
 
         self.embed_layer = self._get_embeddings()
-        self.register_buffer('c_idx', get_tensor(get_effective_c_idx()).refine_names('chosen_feat_group'))
+        self.register_buffer("c_idx", get_tensor(get_effective_c_idx()).refine_names("chosen_feat_group"))
         cat_enum_pairs = get_needed_categories(g.feat_groups, new_style=g.new_style, breakdown=g.new_style)
         if g.new_style:
             self.effective_num_feature_groups = sum([e.num_groups() for e in cat_enum_pairs])
-            simple_conversions = np.zeros([g.num_features], dtype='int64')
+            simple_conversions = np.zeros([g.num_features], dtype="int64")
             max_len = max(len(new_feat.value) for new_feat in conversions.values() if new_feat.value.is_complex())
-            complex_conversions = np.zeros([g.num_features, max_len], dtype='int64')
+            complex_conversions = np.zeros([g.num_features, max_len], dtype="int64")
             for old_feat, new_feat in conversions.items():
                 if new_feat.value.is_complex():
                     l = len(new_feat.value)
@@ -63,11 +61,13 @@ class FeatEmbedding(nn.Module):
         return nn.Embedding(g.num_features, self.dim)
 
     def forward(self, feat_matrix: LT, padding: Optional[BT] = None, masked_positions: Optional[LT] = None) -> FT:
-        feat_matrix = adv_index(feat_matrix, 'feat_group', self.c_idx)
+        feat_matrix = adv_index(feat_matrix, "feat_group", self.c_idx)
         # Convert old style to new style ipa features.
         if g.new_style:
             new_feat_matrix = list()
-            for c_idx, one_feat_group in zip(self.c_idx.unbind(dim=self.group_name), feat_matrix.unbind(dim=self.group_name)):
+            for c_idx, one_feat_group in zip(
+                self.c_idx.unbind(dim=self.group_name), feat_matrix.unbind(dim=self.group_name)
+            ):
                 one_feat_group = one_feat_group.rename(None)
                 new_enum = get_new_style_enum(c_idx.item())
                 l = new_enum.num_groups()
@@ -79,14 +79,14 @@ class FeatEmbedding(nn.Module):
             feat_matrix = new_feat_matrix
         feat_emb = embed(self.embed_layer, feat_matrix, self.feat_emb_name)
         feat_emb = feat_emb.flatten([self.group_name, self.feat_emb_name], self.char_emb_name)
-        feat_emb = feat_emb.align_to('batch', 'length', self.char_emb_name)
+        feat_emb = feat_emb.align_to("batch", "length", self.char_emb_name)
         if padding is not None:
-            padding = padding.align_to('batch', 'length')
+            padding = padding.align_to("batch", "length")
             feat_emb.rename(None)[padding.rename(None)] = 0.0
 
         if masked_positions is not None:
-            batch_i = get_range(padding.size('batch'), 1, 0)
-            feat_emb = feat_emb.align_to('batch', 'char_emb', 'length')
+            batch_i = get_range(padding.size("batch"), 1, 0)
+            feat_emb = feat_emb.align_to("batch", "char_emb", "length")
             # feat_emb = self.feat_embeddings(feat_matrix).view(bs, l, -1).transpose(1, 2)  # size: bs x D x l
             with NoName(feat_emb, masked_positions):
                 feat_emb[batch_i, :, masked_positions] = 0.0
@@ -94,8 +94,7 @@ class FeatEmbedding(nn.Module):
 
 
 class DenseFeatEmbedding(FeatEmbedding):
-
-    @not_supported_argument_value('new_style', True)
+    @not_supported_argument_value("new_style", True)
     def _get_embeddings(self):
         emb_dict = dict()
         for cat in Category:
@@ -103,30 +102,35 @@ class DenseFeatEmbedding(FeatEmbedding):
                 e = get_enum_by_cat(cat)
                 nf = len(e)
                 emb_dict[cat.name] = nn.Parameter(torch.zeros(nf, self.dim))
-                logging.warning('dense feature embedding init')
+                logging.warning("dense feature embedding init")
                 torch.nn.init.uniform_(emb_dict[cat.name], -0.1, 0.1)
         return nn.ParameterDict(emb_dict)
 
     # HACK(j_luo) Use kwargs to deal with masked_positions.
-    def forward(self, dense_feat_matrices: Dict[Category, FT], padding: Optional[BT] = None, masked_positions: Optional[LT] = None) -> FT:
+    def forward(
+        self,
+        dense_feat_matrices: Dict[Category, FT],
+        padding: Optional[BT] = None,
+        masked_positions: Optional[LT] = None,
+    ) -> FT:
         if padding is not None:
-            padding = padding.align_to('batch', 'length')
+            padding = padding.align_to("batch", "length")
 
         embs = list()
         for cat in Category:
             if cat.name in self.embed_layer and cat in dense_feat_matrices:
                 sfm = dense_feat_matrices[cat]
                 emb_param = self.embed_layer[cat.name]
-                sfm = sfm.align_to('batch', 'length', ...)
+                sfm = sfm.align_to("batch", "length", ...)
                 emb = sfm @ emb_param
                 if padding is not None:
                     emb.rename(None)[padding.rename(None)] = 0.0
                 embs.append(emb)
-        feat_emb = torch.cat(embs, dim=-1).refine_names('batch', 'length', self.char_emb_name)
+        feat_emb = torch.cat(embs, dim=-1).refine_names("batch", "length", self.char_emb_name)
 
         if masked_positions is not None:
-            batch_i = get_range(padding.size('batch'), 1, 0)
-            feat_emb = feat_emb.align_to('batch', 'char_emb', 'length')
+            batch_i = get_range(padding.size("batch"), 1, 0)
+            feat_emb = feat_emb.align_to("batch", "char_emb", "length")
             # feat_emb = self.feat_embeddings(feat_matrix).view(bs, l, -1).transpose(1, 2)  # size: bs x D x l
             with NoName(feat_emb, masked_positions):
                 feat_emb[batch_i, :, masked_positions] = 0.0
@@ -135,8 +139,8 @@ class DenseFeatEmbedding(FeatEmbedding):
 
 class Encoder(nn.Module):
 
-    add_argument('window_size', default=3, dtype=int, msg='window size for the cnn kernel')
-    add_argument('dense_input', default=False, dtype=bool, msg='flag to dense input feature matrices')
+    add_argument("window_size", default=3, dtype=int, msg="window size for the cnn kernel")
+    add_argument("dense_input", default=False, dtype=bool, msg="flag to dense input feature matrices")
 
     def __init__(self, dropout: float = 0.0, hidden_size: int = 10, dim: int = 10):
         super().__init__()
@@ -145,7 +149,7 @@ class Encoder(nn.Module):
         self.dim = dim
 
         emb_cls = DenseFeatEmbedding if g.dense_input else FeatEmbedding
-        self.feat_embedding = emb_cls('feat_emb', 'chosen_feat_group', 'char_emb', dim=dim)
+        self.feat_embedding = emb_cls("feat_emb", "chosen_feat_group", "char_emb", dim=dim)
         self.cat_dim = self.dim * self.feat_embedding.effective_num_feature_groups
 
         self._get_core_layers()
@@ -158,25 +162,24 @@ class Encoder(nn.Module):
         self.linear = nn.Linear(self.cat_dim, self.hidden_size)
 
     def forward(self, feat_matrix: LT, pos_to_predict: LT, source_padding: BT) -> FT:
-        bs = source_padding.size('batch')
-        l = source_padding.size('length')
+        bs = source_padding.size("batch")
+        l = source_padding.size("length")
         batch_i = get_range(bs, 1, 0)
         feat_emb = self.feat_embedding(feat_matrix, source_padding, masked_positions=pos_to_predict)
-        feat_emb = feat_emb.align_to('batch', 'char_emb', 'length')
+        feat_emb = feat_emb.align_to("batch", "char_emb", "length")
         output = self.conv_layers(feat_emb.rename(None))
-        output = output.refine_names('batch', 'char_conv_repr', 'length')  # size: bs x D x l
-        output = self.linear(output.align_to(..., 'char_conv_repr'))  # size: bs x l x n_hid
-        output = output.refine_names('batch', 'length', 'hidden_repr')
+        output = output.refine_names("batch", "char_conv_repr", "length")  # size: bs x D x l
+        output = self.linear(output.align_to(..., "char_conv_repr"))  # size: bs x l x n_hid
+        output = output.refine_names("batch", "length", "hidden_repr")
         output = nn.functional.leaky_relu(output, negative_slope=0.1)
         # NOTE(j_luo) This is actually quite wasteful because we are discarding all the irrelevant information, which is computed anyway. This is equivalent to training on ngrams.
         with NoName(output, pos_to_predict):
             h = output[batch_i, pos_to_predict]
-        h = h.refine_names('batch', 'hidden_repr')  # size: bs x n_hid
+        h = h.refine_names("batch", "hidden_repr")  # size: bs x n_hid
         return h
 
 
 class CbowEncoder(Encoder):
-
     def _get_core_layers(self):
         self.mlp = nn.Sequential(
             nn.Dropout(self.dropout),
@@ -187,21 +190,21 @@ class CbowEncoder(Encoder):
             nn.LeakyReLU(negative_slope=0.1),
             nn.Dropout(self.dropout),
             nn.Linear(self.hidden_size, self.hidden_size),
-            nn.LeakyReLU(negative_slope=0.1))
+            nn.LeakyReLU(negative_slope=0.1),
+        )
         # self.mlp[0].refine_names('weight', ['hidden_repr_first', 'char_emb'])
         # self.mlp[2].refine_names('weight', ['hidden_repr_second', 'hidden_repr_first'])
         # self.mlp[4].refine_names('weight', ['hidden_repr', 'hidden_repr_second'])
 
     def forward(self, feat_matrix: LT, pos_to_predict: LT, source_padding: BT) -> FT:
         feat_emb = self.feat_embedding(feat_matrix, source_padding, masked_positions=pos_to_predict)
-        feat_emb = feat_emb.align_to('batch', 'length', 'char_emb').flatten(['length', 'char_emb'], 'mlp_input')
+        feat_emb = feat_emb.align_to("batch", "length", "char_emb").flatten(["length", "char_emb"], "mlp_input")
         h = self.mlp(feat_emb)
-        h.rename_('batch', 'hidden_repr')
+        h.rename_("batch", "hidden_repr")
         return h
 
 
 class Predictor(nn.Module):
-
     def __init__(self, hidden_size: Optional[int] = None):
         hidden_size = hidden_size or g.hidden_size
         super().__init__()
@@ -223,18 +226,18 @@ class Predictor(nn.Module):
                             auto_index = basic_feat.value
                             feat_cat_idx.append(auto_index.f_idx)
                         cat_idx.append(feat_cat_idx)
-                    cat_idx = get_tensor(cat_idx).refine_names('new_style_idx', 'old_style_idx')
+                    cat_idx = get_tensor(cat_idx).refine_names("new_style_idx", "old_style_idx")
                     self.conversion_idx[e.__name__] = cat_idx
 
     def forward(self, h: FT) -> Dict[str, FT]:
-        shared_h = nn.functional.leaky_relu(self.linear(h).refine_names(..., 'shared_repr'), negative_slope=0.1)
+        shared_h = nn.functional.leaky_relu(self.linear(h).refine_names(..., "shared_repr"), negative_slope=0.1)
         ret = dict()
         for name, layer in self.feat_predictors.items():
             out = layer(shared_h).refine_names(..., name)
             if not should_predict_none(name, new_style=g.new_style):
                 f_idx = get_none_index(name)
                 out[:, f_idx] = -999.9
-            ret[Name(name, 'camel')] = out
+            ret[Name(name, "camel")] = out
 
         # Compose probs for complex feature groups if possible.
         if g.new_style:
@@ -250,7 +253,7 @@ class Predictor(nn.Module):
                         parts.append(part)
                     parts = torch.stack(parts, dim=-1)
                     dim_name = e.get_name().value
-                    ret[e.get_name()] = parts.sum(dim=-1).refine_names('batch', dim_name)
+                    ret[e.get_name()] = parts.sum(dim=-1).refine_names("batch", dim_name)
                     for part_cat in e.parts():
                         del ret[part_cat.get_name()]
         for name in ret:
@@ -262,11 +265,11 @@ class Predictor(nn.Module):
                 # Find out the exact value to be conditioned on.
                 # TODO(j_luo) ugly Category call.
                 condition_e = get_enum_by_cat(Category(index.c_idx))
-                condition_name = condition_e.__name__ + ('X' if g.new_style else '')
-                cat_name = get_enum_by_cat(cat).__name__ + ('X' if g.new_style else '')
+                condition_name = condition_e.__name__ + ("X" if g.new_style else "")
+                cat_name = get_enum_by_cat(cat).__name__ + ("X" if g.new_style else "")
 
-                condition_name = Name(condition_name, 'camel')
-                cat_name = Name(cat_name, 'camel')
+                condition_name = Name(condition_name, "camel")
+                cat_name = Name(cat_name, "camel")
                 condition_log_probs = ret[condition_name][..., index.f_idx]
                 # condition_log_probs.align_as(ret[cat_name])
                 ret[cat_name] = ret[cat_name] + condition_log_probs.rename(None).unsqueeze(dim=-1)
@@ -274,8 +277,7 @@ class Predictor(nn.Module):
 
 
 class AdaptLayer(nn.Module):
-
-    @not_supported_argument_value('new_style', True)
+    @not_supported_argument_value("new_style", True)
     def __init__(self):
         super().__init__()
         param_dict = dict()
@@ -298,27 +300,25 @@ class AdaptLayer(nn.Module):
             if cat.name in self.adapters:
                 alignment = self.alignment(cat.name)
                 sfm_adapted = sfm @ alignment
-                ret[cat] = sfm_adapted.refine_names('batch', 'length', f'{cat.name}_feat_adapted')
+                ret[cat] = sfm_adapted.refine_names("batch", "length", f"{cat.name}_feat_adapted")
         return ret
 
 
 class PositionalEmbedding(nn.Module):
-
     def __init__(self, n_pos, dim):
         super().__init__()
         embeddings = torch.zeros(n_pos, dim)
-        position_enc = np.array([
-            [pos / np.power(10000, 2 * (j // 2) / dim) for j in range(dim)]
-            for pos in range(n_pos)
-        ])
+        position_enc = np.array(
+            [[pos / np.power(10000, 2 * (j // 2) / dim) for j in range(dim)] for pos in range(n_pos)]
+        )
         embeddings[:, 0::2] = torch.FloatTensor(np.sin(position_enc[:, 0::2]))
         embeddings[:, 1::2] = torch.FloatTensor(np.cos(position_enc[:, 1::2]))
-        self.register_buffer('embeddings', embeddings)
+        self.register_buffer("embeddings", embeddings)
 
     def forward(self, positions: LT):
         with NoName(self.embeddings, positions):
             ret = self.embeddings[positions]
-        new_names = positions.names + ('char_emb', )
+        new_names = positions.names + ("char_emb",)
         return ret.refine_names(*new_names)
 
 
@@ -335,7 +335,6 @@ class SelfAttention(MultiheadAttention):
 
 
 class TransformerLayer(TransformerEncoderLayer):
-
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1):
         super().__init__(d_model, nhead, dim_feedforward=dim_feedforward, dropout=dropout)
         self.self_attn = SelfAttention(d_model, nhead, dropout=dropout)
