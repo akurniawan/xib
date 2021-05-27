@@ -12,20 +12,24 @@ from dev_misc.trainlib.trainer import freeze
 from dev_misc.utils import deprecated
 from torch.optim import SGD, Adagrad, Adam
 from torch.optim.lr_scheduler import CyclicLR
-from xib.data_loader import (ContinuousTextDataLoader, DataLoaderRegistry,
-                             DenseIpaDataLoader, IpaDataLoader)
+from xib.data_loader import ContinuousTextDataLoader, DataLoaderRegistry, DenseIpaDataLoader, IpaDataLoader
 from xib.model.decipher_model import DecipherModel
 from xib.model.extract_model import ExtractModel
 from xib.model.lm_model import LM, AdaptLM
 from xib.search.search_solver import SearchSolver
 from xib.search.searcher import BruteForceSearcher
-from xib.training.evaluator import (DecipherEvaluator, ExtractEvaluator,
-                                    LMEvaluator, SearchSolverEvaluator)
-from xib.training.task import (AdaptCbowTask, AdaptLMTask, CbowTask,
-                               DecipherTask, ExtractTask, LMTask, MlmTask,
-                               TransferTask)
-from xib.training.trainer import (AdaptLMTrainer, DecipherTrainer,
-                                  ExtractTrainer, LMTrainer)
+from xib.training.evaluator import DecipherEvaluator, ExtractEvaluator, LMEvaluator, SearchSolverEvaluator
+from xib.training.task import (
+    AdaptCbowTask,
+    AdaptLMTask,
+    CbowTask,
+    DecipherTask,
+    ExtractTask,
+    LMTask,
+    MlmTask,
+    TransferTask,
+)
+from xib.training.trainer import AdaptLMTrainer, DecipherTrainer, ExtractTrainer, LMTrainer
 
 add_argument(
     "task",
@@ -254,7 +258,7 @@ class ExtractManager(BaseManager):
         # Save init parameters.
 
         out_path = g.log_dir / f"saved.init"
-        # self.trainer.save_to(out_path)
+        self.trainer.save_to(out_path)
         while self.trainer.threshold > g.min_threshold:
             self.trainer.reset()
             self.trainer.set_optimizer(optim_cls, lr=g.learning_rate)
