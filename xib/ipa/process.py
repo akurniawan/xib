@@ -657,7 +657,7 @@ normal_feats = ['ptype', 'c_voicing', 'c_place', 'c_manner', 'v_height', 'v_back
 feats_to_merge = ['diacritics', 's_stress', 's_length', 's_break', 't_level', 't_contour', 't_global']
 
 
-def merge_ipa(errors, s: Union[pd.Series, Segment], ipa: IPAString, segment: str) -> List:
+def merge_ipa(s: Union[pd.Series, Segment], ipa: IPAString, segment: str) -> List:
     i = 0
     keep = True
     datum_cols = {feat: list() for feat in normal_feats + feats_to_merge}
@@ -680,7 +680,7 @@ def merge_ipa(errors, s: Union[pd.Series, Segment], ipa: IPAString, segment: str
                         assert datum_c_to_merge[feat] is None
                         datum_c_to_merge[feat] = value
                     except:
-                        errors[(feat)].append(s)
+                        # errors[(feat)].append(s)
                         keep = False
             j += 1
         merged_ipa.append(ipa[i:j])
