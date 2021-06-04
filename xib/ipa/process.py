@@ -6,8 +6,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import zip_longest
-from typing import (Callable, ClassVar, Iterator, List, Optional, Sequence,
-                    TextIO, Tuple, Union)
+from typing import Callable, ClassVar, Iterator, List, Optional, Sequence, TextIO, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -15,10 +14,22 @@ import torch
 from dev_misc import add_argument, g
 from dev_misc.devlib import BT, LT
 from dev_misc.utils import cached_property, deprecated
-from ipapy.ipachar import (DG_C_MANNER, DG_C_PLACE, DG_C_VOICING,
-                           DG_DIACRITICS, DG_S_BREAK, DG_S_LENGTH, DG_S_STRESS,
-                           DG_T_CONTOUR, DG_T_GLOBAL, DG_T_LEVEL, DG_TYPES,
-                           DG_V_BACKNESS, DG_V_HEIGHT, DG_V_ROUNDNESS)
+from ipapy.ipachar import (
+    DG_C_MANNER,
+    DG_C_PLACE,
+    DG_C_VOICING,
+    DG_DIACRITICS,
+    DG_S_BREAK,
+    DG_S_LENGTH,
+    DG_S_STRESS,
+    DG_T_CONTOUR,
+    DG_T_GLOBAL,
+    DG_T_LEVEL,
+    DG_TYPES,
+    DG_V_BACKNESS,
+    DG_V_HEIGHT,
+    DG_V_ROUNDNESS,
+)
 from ipapy.ipastring import IPAString
 from tqdm import tqdm
 from xib.ipa import Category
@@ -723,7 +734,7 @@ def merge_ipa(s: Union[pd.Series, Segment], ipa: IPAString, segment: str) -> Lis
                         assert datum_c_to_merge[feat] is None
                         datum_c_to_merge[feat] = value
                     except:
-                        print("error in ipa")
+                        print("error in:", ipa)
                         # errors[(feat)].append(s)
                         keep = False
             j += 1
