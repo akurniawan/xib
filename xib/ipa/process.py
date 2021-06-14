@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import zip_longest
-from typing import Callable, ClassVar, Iterator, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import (Callable, ClassVar, Iterator, List, Optional, Sequence,
+                    TextIO, Tuple, Union)
 
 import numpy as np
 import pandas as pd
@@ -14,22 +15,10 @@ import torch
 from dev_misc import add_argument, g
 from dev_misc.devlib import BT, LT
 from dev_misc.utils import cached_property, deprecated
-from ipapy.ipachar import (
-    DG_C_MANNER,
-    DG_C_PLACE,
-    DG_C_VOICING,
-    DG_DIACRITICS,
-    DG_S_BREAK,
-    DG_S_LENGTH,
-    DG_S_STRESS,
-    DG_T_CONTOUR,
-    DG_T_GLOBAL,
-    DG_T_LEVEL,
-    DG_TYPES,
-    DG_V_BACKNESS,
-    DG_V_HEIGHT,
-    DG_V_ROUNDNESS,
-)
+from ipapy.ipachar import (DG_C_MANNER, DG_C_PLACE, DG_C_VOICING,
+                           DG_DIACRITICS, DG_S_BREAK, DG_S_LENGTH, DG_S_STRESS,
+                           DG_T_CONTOUR, DG_T_GLOBAL, DG_T_LEVEL, DG_TYPES,
+                           DG_V_BACKNESS, DG_V_HEIGHT, DG_V_ROUNDNESS)
 from ipapy.ipastring import IPAString
 from tqdm import tqdm
 from xib.ipa import Category
@@ -771,7 +760,12 @@ def merge(df, progress=False):
 
 def indexify_ipa(col: str, lst: List) -> List:
     cat_cls = Category.get_enum(col)
-    return [getattr(cat_cls, x.replace("-", "_").upper()).value.g_idx for x in lst]
+    res = []
+    for x in lst:
+        if hasattr(cat_cls, x.replace("-", "_").upper()):
+            res.append(getattr(cat_cls, x.replace("-", "_").upper()).value.g_idx)
+    return res
+    # return [getattr(cat_cls, x.replace("-", "_").upper()).value.g_idx for x in lst]
 
 
 def indexify(df, progress=False):
